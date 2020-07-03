@@ -22,26 +22,13 @@ import (
 	"io/ioutil"
 	"os"
 
-	sourcev1 "github.com/fluxcd/source-controller/api/v1alpha1"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 
 	"github.com/paulcarlton-ww/example-prog/pkg/git"
 )
 
-// GitRepository defines the desired state of a Git repository.
-type GitRepository struct {
-	Name     string `json:"name"`
-	URL      string `json:"url"`
-	Password string `json:"password"`
-	Username string `json:"username"`
-
-	// The git reference to checkout and monitor for changes, defaults to
-	// master branch.
-	// +optional
-	Reference *sourcev1.GitRepositoryRef `json:"ref,omitempty"`
-}
-
-func Do(repository GitRepository) error {
+// Do test
+func Do(repository git.Repository) error {
 	ctx := context.Background()
 	// create tmp dir for the Git clone
 	tmpGit, err := ioutil.TempDir("", repository.Name)
@@ -52,6 +39,14 @@ func Do(repository GitRepository) error {
 
 	// determine auth method
 	var auth transport.AuthMethod
+	authStrategy := git.AuthSecretStrategyForURL(repository.URL)
+
+	auth, err = authStrategy.Method(repository)
+	if err != nil {
+		err = fmt.Errorf("auth error: %w", err)
+		return err
+	}
+
 	checkoutStrategy := git.CheckoutStrategyForRef(repository.Reference)
 	commit, revision, err := checkoutStrategy.Checkout(ctx, tmpGit, repository.URL, auth)
 	if err != nil {

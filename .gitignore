@@ -6,3 +6,4 @@ pkg/**/._gometalinter
 vendor/
 client/vendor/
 client/pkg/**/._gometalinter
+.vscode/

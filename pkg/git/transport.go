@@ -17,55 +17,69 @@ limitations under the License.
 package git
 
 import (
-	"fmt"
 	"strings"
 
+	"github.com/fluxcd/pkg/ssh/knownhosts"
+	sourcev1 "github.com/fluxcd/source-controller/api/v1alpha1"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
-	corev1 "k8s.io/api/core/v1"
-
-	"github.com/fluxcd/pkg/ssh/knownhosts"
 )
 
+// Repository defines the desired state of a Git repository.
+type Repository struct {
+	Name       string `json:"name"`
+	URL        string `json:"url"`
+	Password   string `json:"password"`
+	Username   string `json:"username"`
+	Identity   []byte `json:"identity"`
+	KnownHosts []byte `json:"known_hosts"`
+
+	// The git reference to checkout and monitor for changes, defaults to
+	// master branch.
+	// +optional
+	Reference *sourcev1.GitRepositoryRef `json:"ref,omitempty"`
+}
+
+// AuthSecretStrategyForURL returns the type of authorization based on url
 func AuthSecretStrategyForURL(url string) AuthSecretStrategy {
 	switch {
 	case strings.HasPrefix(url, "http"):
-		return &BasicAuth{}
+		basicAuth := &BasicAuth{}
+		return basicAuth
 	case strings.HasPrefix(url, "ssh"):
 		return &PublicKeyAuth{}
 	}
 	return nil
 }
 
+// AuthSecretStrategy defines a method to get authentication parameters
 type AuthSecretStrategy interface {
-	Method(secret corev1.Secret) (transport.AuthMethod, error)
+	Method(repository Repository) (transport.AuthMethod, error)
 }
 
-type BasicAuth struct{}
+// BasicAuth returns AuthSecretStrategy
+type BasicAuth struct {
+	AuthSecretStrategy
+}
 
-func (s *BasicAuth) Method(secret corev1.Secret) (transport.AuthMethod, error) {
+// Method returns transport.AuthMethod
+func (s *BasicAuth) Method(repository Repository) (transport.AuthMethod, error) {
 	auth := &http.BasicAuth{}
-	if username, ok := secret.Data["username"]; ok {
-		auth.Username = string(username)
-	}
-	if password, ok := secret.Data["password"]; ok {
-		auth.Password = string(password)
-	}
-	if auth.Username == "" || auth.Password == "" {
-		return nil, fmt.Errorf("invalid '%s' secret data: required fields 'username' and 'password'", secret.Name)
-	}
+	auth.Username = repository.Username
+	auth.Password = repository.Password
 	return auth, nil
 }
 
-type PublicKeyAuth struct{}
+// PublicKeyAuth returns AuthSecretStrategy
+type PublicKeyAuth struct {
+	AuthSecretStrategy
+}
 
-func (s *PublicKeyAuth) Method(secret corev1.Secret) (transport.AuthMethod, error) {
-	identity := secret.Data["identity"]
-	knownHosts := secret.Data["known_hosts"]
-	if len(identity) == 0 || len(knownHosts) == 0 {
-		return nil, fmt.Errorf("invalid '%s' secret data: required fields 'identity' and 'known_hosts'", secret.Name)
-	}
+// Method returns transport.AuthMethod
+func (s *PublicKeyAuth) Method(repository Repository) (transport.AuthMethod, error) {
+	identity := repository.Identity
+	knownHosts := repository.KnownHosts
 
 	pk, err := ssh.NewPublicKeys("git", identity, "")
 	if err != nil {
