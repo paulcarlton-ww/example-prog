@@ -46,7 +46,7 @@ func Do(repository git.Repository) error {
 		err = fmt.Errorf("auth error: %w", err)
 		return err
 	}
-
+	fmt.Printf("Auth: %s\n", auth)
 	checkoutStrategy := git.CheckoutStrategyForRef(repository.Reference)
 	commit, revision, err := checkoutStrategy.Checkout(ctx, tmpGit, repository.URL, auth)
 	if err != nil {

@@ -83,23 +83,23 @@ func main() {
 		os.Exit(1)
 	}
 
-	if len(*config.knownHost) == 0 {
-		log.Error("known-host file not supplied")
-		os.Exit(1)
-	}
-	knownHost, err := ioutil.ReadFile(*config.knownHost) // just pass the file name
-	if err != nil {
-		log.Errorf("failed to read known-host file: %s", err)
-		os.Exit(1)
-	}
 	repo := git.Repository{
-		Name:       *config.repository,
-		URL:        *config.url,
-		Username:   *config.username,
-		Password:   *config.password,
-		Identity:   sshKey,
-		KnownHosts: knownHost,
+		Name:     *config.repository,
+		URL:      *config.url,
+		Username: *config.username,
+		Password: *config.password,
+		Identity: sshKey,
 	}
+
+	if len(*config.knownHost) != 0 {
+		repo.KnownHosts, err = ioutil.ReadFile(*config.knownHost) // just pass the file name
+		if err != nil {
+			log.Errorf("failed to read known-host file: %s", err)
+
+			os.Exit(1)
+		}
+	}
+
 	if err := tester.Do(repo); err != nil {
 		log.Errorf("failed: %s", err)
 	}
